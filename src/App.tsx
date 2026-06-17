@@ -33,6 +33,8 @@ const DEFAULT_COLOR_OPTIONS = {
   contrast: 1,
   saturation: 1,
   usePalette: false,
+  maxColors: 12,
+  speckleReduction: 2,
 }
 
 function clampPixelCount(value: number) {
@@ -71,6 +73,8 @@ function App() {
   const [contrast, setContrast] = useState(DEFAULT_COLOR_OPTIONS.contrast)
   const [saturation, setSaturation] = useState(DEFAULT_COLOR_OPTIONS.saturation)
   const [usePalette, setUsePalette] = useState(DEFAULT_COLOR_OPTIONS.usePalette)
+  const [maxColors, setMaxColors] = useState(DEFAULT_COLOR_OPTIONS.maxColors)
+  const [speckleReduction, setSpeckleReduction] = useState(DEFAULT_COLOR_OPTIONS.speckleReduction)
   const [error, setError] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -170,6 +174,8 @@ function App() {
             saturation,
             usePalette,
             palette: BEAD_PALETTE,
+            maxColors,
+            speckleReduction,
           },
         )
 
@@ -197,7 +203,20 @@ function App() {
       isCurrent = false
       window.clearTimeout(debounceId)
     }
-  }, [brightness, contrast, cropPixels, hasValidDimensions, imageSrc, previewScale, saturation, usePalette, xPixels, yPixels])
+  }, [
+    brightness,
+    contrast,
+    cropPixels,
+    hasValidDimensions,
+    imageSrc,
+    maxColors,
+    previewScale,
+    saturation,
+    speckleReduction,
+    usePalette,
+    xPixels,
+    yPixels,
+  ])
 
   const handleDownload = () => {
     if (!outputCanvas || !xPixels || !yPixels) {
@@ -217,6 +236,8 @@ function App() {
     setContrast(DEFAULT_COLOR_OPTIONS.contrast)
     setSaturation(DEFAULT_COLOR_OPTIONS.saturation)
     setUsePalette(DEFAULT_COLOR_OPTIONS.usePalette)
+    setMaxColors(DEFAULT_COLOR_OPTIONS.maxColors)
+    setSpeckleReduction(DEFAULT_COLOR_OPTIONS.speckleReduction)
   }
 
   const handleDimensionBlur = (
@@ -489,6 +510,32 @@ function App() {
                 checked={usePalette}
                 type="checkbox"
                 onChange={(event) => setUsePalette(event.target.checked)}
+              />
+            </label>
+
+            <label className="slider-control">
+              <span>Max colors <strong>{maxColors}</strong></span>
+              <input
+                disabled={!usePalette}
+                max="24"
+                min="4"
+                step="1"
+                type="range"
+                value={maxColors}
+                onChange={(event) => setMaxColors(Number(event.target.value))}
+              />
+            </label>
+
+            <label className="slider-control">
+              <span>Clean speckles <strong>{speckleReduction} / 4</strong></span>
+              <input
+                disabled={!usePalette}
+                max="4"
+                min="0"
+                step="1"
+                type="range"
+                value={speckleReduction}
+                onChange={(event) => setSpeckleReduction(Number(event.target.value))}
               />
             </label>
           </div>
