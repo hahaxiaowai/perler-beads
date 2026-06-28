@@ -69,6 +69,19 @@ function rgbToHex(r: number, g: number, b: number) {
   return `#${[r, g, b].map((value) => clampChannel(value).toString(16).padStart(2, '0')).join('')}`
 }
 
+function parseHexColor(hex: string) {
+  const normalized = hex.trim().replace(/^#/, '')
+  if (!/^[0-9a-f]{6}$/i.test(normalized)) {
+    throw new Error('Invalid hex color.')
+  }
+
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+  }
+}
+
 function channelChroma(red: number, green: number, blue: number) {
   return Math.max(red, green, blue) - Math.min(red, green, blue)
 }
@@ -188,6 +201,40 @@ export function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
   link.click()
 }
 
+export function replaceCanvasColor(
+  canvas: HTMLCanvasElement,
+  fromHex: string,
+  replacement: RgbColor,
+  previewScale = 10,
+) {
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) {
+    throw new Error('Canvas is not supported in this browser.')
+  }
+
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height)
+  const changedPixels = replaceImageDataColor(imageData, fromHex, replacement)
+  context.putImageData(imageData, 0, 0)
+
+  const previewCanvas = document.createElement('canvas')
+  const previewContext = previewCanvas.getContext('2d')
+  if (!previewContext) {
+    throw new Error('Canvas is not supported in this browser.')
+  }
+
+  previewCanvas.width = canvas.width * previewScale
+  previewCanvas.height = canvas.height * previewScale
+  previewContext.imageSmoothingEnabled = false
+  previewContext.drawImage(canvas, 0, 0, previewCanvas.width, previewCanvas.height)
+
+  return {
+    outputCanvas: canvas,
+    previewCanvas,
+    usedColors: getUsedColors(canvas),
+    changedPixels,
+  }
+}
+
 export function adjustCanvasColors(canvas: HTMLCanvasElement, options: Pick<ColorOptions, 'brightness' | 'contrast' | 'saturation'>) {
   const context = canvas.getContext('2d', { willReadFrequently: true })
   if (!context) {
@@ -225,6 +272,30 @@ export function adjustImageDataColors(
     data[index + 1] = clampChannel(green)
     data[index + 2] = clampChannel(blue)
   }
+}
+
+export function replaceImageDataColor(imageData: ImageData, fromHex: string, replacement: RgbColor) {
+  const fromColor = parseHexColor(fromHex)
+  const data = imageData.data
+  let changedPixels = 0
+
+  for (let index = 0; index < data.length; index += 4) {
+    if (
+      data[index + 3] === 0
+      || data[index] !== fromColor.r
+      || data[index + 1] !== fromColor.g
+      || data[index + 2] !== fromColor.b
+    ) {
+      continue
+    }
+
+    data[index] = replacement.r
+    data[index + 1] = replacement.g
+    data[index + 2] = replacement.b
+    changedPixels += 1
+  }
+
+  return changedPixels
 }
 
 export function sampleImageDataToPixelGrid(

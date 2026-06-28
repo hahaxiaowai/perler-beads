@@ -5,6 +5,7 @@ import {
   getUsedColorsFromImageData,
   mapImageDataToPalette,
   perceptualColorDistance,
+  replaceImageDataColor,
   sampleImageDataToPixelGrid,
   type RgbColor,
 } from './imageProcessing'
@@ -177,6 +178,27 @@ describe('color tuning', () => {
     expect(getUsedColorsFromImageData(imageData)).toEqual([
       { hex: '#ff0000', count: 2 },
       { hex: '#000000', count: 1 },
+    ])
+  })
+
+  it('replaces only matching opaque pixels with a selected palette color', () => {
+    const imageData = imageDataFromPixels([
+      [255, 0, 0, 255],
+      [255, 0, 0, 0],
+      [0, 0, 255, 255],
+    ])
+
+    const changedPixels = replaceImageDataColor(
+      imageData,
+      '#ff0000',
+      { name: 'Yellow', hex: '#ffff00', r: 255, g: 255, b: 0 },
+    )
+
+    expect(changedPixels).toBe(1)
+    expect(Array.from(imageData.data)).toEqual([
+      255, 255, 0, 255,
+      255, 0, 0, 0,
+      0, 0, 255, 255,
     ])
   })
 })

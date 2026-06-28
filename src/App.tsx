@@ -20,8 +20,11 @@ import {
   getCroppedCanvas,
   loadImageFromFile,
   pixelateCanvas,
+  replaceCanvasColor,
   type UsedColor,
 } from './imageProcessing'
+import { getInitialLanguage, languages, t, type Language } from './i18n'
+import { DEFAULT_BOARD_SIZE, buildColorInventory, createGridPatternCanvas, getBoardLayout } from './patternExport'
 
 const MIN_PIXELS = 1
 const MAX_PIXELS = 300
@@ -59,6 +62,11 @@ function getPreviewScale(width: number, height: number) {
 }
 
 function App() {
+  const [language, setLanguage] = useState<Language>(() => {
+    const storedLanguage = window.localStorage.getItem('perler-beads-language')
+    const matchedLanguage = languages.find((option) => option.code === storedLanguage)
+    return matchedLanguage?.code ?? getInitialLanguage()
+  })
   const [imageSrc, setImageSrc] = useState<string | null>(null)
   const [fileName, setFileName] = useState('')
   const [xPixelInput, setXPixelInput] = useState(String(DEFAULT_X_PIXELS))
@@ -85,25 +93,43 @@ function App() {
   const aspect = hasValidDimensions ? xPixels / yPixels : 1
   const previewScale = hasValidDimensions ? getPreviewScale(xPixels, yPixels) : 1
 
+  const translate = useCallback(
+    (key: Parameters<typeof t>[1], params?: Parameters<typeof t>[2]) => t(language, key, params),
+    [language],
+  )
+
   const statusText = useMemo(() => {
     if (!hasValidDimensions) {
-      return `Pixel counts must be between ${MIN_PIXELS} and ${MAX_PIXELS}.`
+      return translate('invalidDimensionsStatus', { min: MIN_PIXELS, max: MAX_PIXELS })
     }
 
     if (!imageSrc) {
-      return 'Upload an image to unlock the crop board.'
+      return translate('uploadStatus')
     }
 
     if (isProcessing) {
-      return 'Building crisp bead-sized pixels...'
+      return translate('processingStatus')
     }
 
     if (previewUrl) {
-      return `Ready: ${xPixels} x ${yPixels} PNG.`
+      return translate('readyStatus', { width: xPixels, height: yPixels })
     }
 
-    return 'Move or zoom the crop box to generate a preview.'
-  }, [hasValidDimensions, imageSrc, isProcessing, previewUrl, xPixels, yPixels])
+    return translate('cropHint')
+  }, [hasValidDimensions, imageSrc, isProcessing, previewUrl, translate, xPixels, yPixels])
+
+  const colorInventory = useMemo(
+    () => buildColorInventory(usedColors, outputCanvas ? outputCanvas.width * outputCanvas.height : 0, BEAD_PALETTE),
+    [outputCanvas, usedColors],
+  )
+  const boardLayout = useMemo(
+    () => (outputCanvas ? getBoardLayout(outputCanvas.width, outputCanvas.height, DEFAULT_BOARD_SIZE) : null),
+    [outputCanvas],
+  )
+
+  useEffect(() => {
+    window.localStorage.setItem('perler-beads-language', language)
+  }, [language])
 
   const processFile = async (file: File) => {
     if (!file) {
@@ -111,7 +137,7 @@ function App() {
     }
 
     if (!file.type.startsWith('image/')) {
-      setError('Please upload a JPG, PNG, or WebP image.')
+      setError(translate('fileTypeError'))
       return
     }
 
@@ -127,7 +153,7 @@ function App() {
       setUsedColors([])
       setError('')
     } catch (readError) {
-      setError(readError instanceof Error ? readError.message : 'Could not read image file.')
+      setError(readError instanceof Error ? readError.message : translate('imageReadError'))
     }
   }
 
@@ -188,7 +214,7 @@ function App() {
         setUsedColors(nextUsedColors)
       } catch (renderError) {
         if (isCurrent) {
-          setError(renderError instanceof Error ? renderError.message : 'Could not pixelate this image.')
+          setError(renderError instanceof Error ? renderError.message : translate('pixelateError'))
         }
       } finally {
         if (isCurrent) {
@@ -213,6 +239,7 @@ function App() {
     previewScale,
     saturation,
     speckleReduction,
+    translate,
     usePalette,
     xPixels,
     yPixels,
@@ -224,6 +251,61 @@ function App() {
     }
 
     downloadCanvas(outputCanvas, `pixel-art-${xPixels}x${yPixels}.png`)
+  }
+
+  const handleDownloadGrid = () => {
+    if (!outputCanvas || !xPixels || !yPixels) {
+      return
+    }
+
+    downloadCanvas(createGridPatternCanvas(outputCanvas), `pixel-art-grid-${xPixels}x${yPixels}.png`)
+  }
+
+  const handleReplaceColor = (fromHex: string, replacementHex: string) => {
+    if (!outputCanvas) {
+      return
+    }
+
+    const replacement = BEAD_PALETTE.find((color) => color.hex === replacementHex)
+    if (!replacement || fromHex.toLowerCase() === replacement.hex.toLowerCase()) {
+      return
+    }
+
+    const nextOutputCanvas = document.createElement('canvas')
+    const context = nextOutputCanvas.getContext('2d', { willReadFrequently: true })
+    if (!context) {
+      setError(translate('pixelateError'))
+      return
+    }
+
+    nextOutputCanvas.width = outputCanvas.width
+    nextOutputCanvas.height = outputCanvas.height
+    context.drawImage(outputCanvas, 0, 0)
+
+    try {
+      const {
+        outputCanvas: replacedCanvas,
+        previewCanvas,
+        usedColors: nextUsedColors,
+      } = replaceCanvasColor(nextOutputCanvas, fromHex, replacement, previewScale)
+      setOutputCanvas(replacedCanvas)
+      setPreviewUrl(previewCanvas.toDataURL('image/png'))
+      setUsedColors(nextUsedColors)
+    } catch (replaceError) {
+      setError(replaceError instanceof Error ? replaceError.message : translate('pixelateError'))
+    }
+  }
+
+  const getReplaceSelectId = (hex: string) => `replace-${hex.replace('#', '')}`
+
+  const handleApplyReplacement = (fromHex: string) => {
+    const select = document.getElementById(getReplaceSelectId(fromHex)) as HTMLSelectElement | null
+    if (!select) {
+      return
+    }
+
+    handleReplaceColor(fromHex, select.value)
+    select.selectedIndex = 0
   }
 
   const handleReset = () => {
@@ -251,24 +333,37 @@ function App() {
 
   return (
     <main className="app-shell">
-      <nav className="progress-nav" aria-label="Pixel workflow">
+      <nav className="progress-nav" aria-label={translate('workflowLabel')}>
         <div>
           <span className="logo-mark">PB</span>
           <div>
-            <strong>Pixel Bead Studio</strong>
-            <span>Pixelate your world. Make it real.</span>
+            <strong>{translate('brandName')}</strong>
+            <span>{translate('brandTagline')}</span>
           </div>
         </div>
         <ol>
-          <li><span>1</span> Upload & set size</li>
-          <li><span>2</span> Crop your image</li>
-          <li><span>3</span> Pixelate & download</li>
+          <li><span>1</span> {translate('uploadSizeStep')}</li>
+          <li><span>2</span> {translate('cropStepTitle')}</li>
+          <li><span>3</span> {translate('pixelateDownloadStep')}</li>
         </ol>
+        <label className="language-switcher">
+          <span>{translate('languageLabel')}</span>
+          <select
+            value={language}
+            onChange={(event) => setLanguage(event.target.value as Language)}
+          >
+            {languages.map((option) => (
+              <option key={option.code} value={option.code}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </nav>
 
       <section className="studio-header">
         <div>
-          <h1>Turn any picture into a bead-ready pixel image.</h1>
+          <h1>{translate('appTitle')}</h1>
         </div>
         <div className="header-status">
           <Sparkles size={18} />
@@ -276,13 +371,13 @@ function App() {
         </div>
       </section>
 
-      <section className="workflow-grid" aria-label="Pixel image workflow">
+      <section className="workflow-grid" aria-label={translate('workflowLabel')}>
         <aside className="tool-panel upload-panel">
           <div className="step-title">
             <span>1</span>
             <div>
-              <p>Upload</p>
-              <h2>Choose your image</h2>
+              <p>{translate('upload')}</p>
+              <h2>{translate('uploadStepTitle')}</h2>
             </div>
           </div>
 
@@ -301,17 +396,17 @@ function App() {
               onChange={handleFileChange}
             />
             <ImagePlus size={34} />
-            <strong>{fileName || 'Drop in a photo'}</strong>
-            <span>JPG, PNG, or WebP stays in your browser.</span>
+            <strong>{fileName || translate('uploadActionEmpty')}</strong>
+            <span>{translate('uploadActionHint')}</span>
           </button>
 
           <div className="dimension-card">
             <div className="section-label">
               <Grid3X3 size={18} />
-              <span>Pixel count</span>
+              <span>{translate('pixelCount')}</span>
             </div>
             <label>
-              Horizontal beads
+              {translate('xBeads')}
               <input
                 inputMode="numeric"
                 max={MAX_PIXELS}
@@ -323,7 +418,7 @@ function App() {
               />
             </label>
             <label>
-              Vertical beads
+              {translate('yBeads')}
               <input
                 inputMode="numeric"
                 max={MAX_PIXELS}
@@ -336,8 +431,8 @@ function App() {
             </label>
             <p className={hasValidDimensions ? 'hint' : 'hint error-text'}>
               {hasValidDimensions
-                ? `Crop ratio is locked to ${xPixels}:${yPixels}.`
-                : `${MIN_PIXELS}-${MAX_PIXELS} pixels per side.`}
+                ? translate('cropRatioLocked', { width: xPixels, height: yPixels })
+                : translate('dimensionRangeHint', { min: MIN_PIXELS, max: MAX_PIXELS })}
             </p>
           </div>
 
@@ -355,19 +450,19 @@ function App() {
           <div className="step-title">
             <span>2</span>
             <div>
-              <p>Crop</p>
-              <h2>Frame the part you want</h2>
+              <p>{translate('crop')}</p>
+              <h2>{translate('cropImage')}</h2>
             </div>
           </div>
 
           <div className="crop-toolbar">
             <div>
               <LockKeyhole size={16} />
-              <span>{hasValidDimensions ? `${xPixels}:${yPixels}` : 'Ratio locked'}</span>
+              <span>{hasValidDimensions ? `${xPixels}:${yPixels}` : translate('ratioLocked')}</span>
             </div>
             <button type="button" onClick={handleReset} disabled={!imageSrc}>
               <RefreshCw size={16} />
-              Reset
+              {translate('reset')}
             </button>
           </div>
 
@@ -389,15 +484,15 @@ function App() {
             ) : (
               <div className="empty-state">
                 <Upload size={38} />
-                <strong>Upload an image and set a valid grid.</strong>
-                <span>The crop box will lock to your bead dimensions.</span>
+                <strong>{translate('uploadEmptyTitle')}</strong>
+                <span>{translate('uploadEmptyHint')}</span>
               </div>
             )}
           </div>
 
           <div className="zoom-row">
             <Move size={18} />
-            <label htmlFor="zoom">Zoom</label>
+            <label htmlFor="zoom">{translate('zoom')}</label>
             <input
               disabled={!imageSrc}
               id="zoom"
@@ -415,15 +510,15 @@ function App() {
           <div className="step-title">
             <span>3</span>
             <div>
-              <p>Export</p>
-              <h2>Preview the pixels</h2>
+              <p>{translate('export')}</p>
+              <h2>{translate('previewStageTitle')}</h2>
             </div>
           </div>
 
           <div className="preview-frame">
             {previewUrl && hasValidDimensions ? (
               <img
-                alt={`Pixelated output preview at ${xPixels} by ${yPixels} pixels`}
+                alt={translate('previewAlt', { width: xPixels, height: yPixels })}
                 src={previewUrl}
                 style={{
                   aspectRatio: `${xPixels} / ${yPixels}`,
@@ -432,24 +527,24 @@ function App() {
             ) : (
               <div className="empty-state preview-empty">
                 <Scissors size={34} />
-                <strong>No pixel preview yet</strong>
-                <span>Adjust the crop to make the preview appear here.</span>
+                <strong>{translate('noPreviewTitle')}</strong>
+                <span>{translate('noPreviewHint')}</span>
               </div>
             )}
           </div>
 
           <dl className="output-details">
             <div>
-              <dt>PNG size</dt>
+              <dt>PNG</dt>
               <dd>{hasValidDimensions ? `${xPixels} x ${yPixels}` : '-'}</dd>
             </div>
             <div>
-              <dt>Preview scale</dt>
+              <dt>{translate('previewScale')}</dt>
               <dd>{hasValidDimensions ? `${previewScale}x` : '-'}</dd>
             </div>
             <div>
-              <dt>Source</dt>
-              <dd>{fileName || 'Not uploaded'}</dd>
+              <dt>{translate('source')}</dt>
+              <dd>{fileName || translate('notUploaded')}</dd>
             </div>
           </dl>
 
@@ -457,16 +552,16 @@ function App() {
             <div className="color-tuning-header">
               <div className="section-label">
                 <SlidersHorizontal size={18} />
-                <span>Color tuning</span>
+                <span>{translate('colorTuning')}</span>
               </div>
               <button type="button" onClick={handleResetColors}>
                 <RotateCcw size={15} />
-                Reset colors
+                {translate('resetColors')}
               </button>
             </div>
 
             <label className="slider-control">
-              <span>Brightness <strong>{brightness > 0 ? `+${brightness}` : brightness}</strong></span>
+              <span>{translate('brightness')} <strong>{brightness > 0 ? `+${brightness}` : brightness}</strong></span>
               <input
                 max="50"
                 min="-50"
@@ -478,7 +573,7 @@ function App() {
             </label>
 
             <label className="slider-control">
-              <span>Contrast <strong>{contrast.toFixed(1)}x</strong></span>
+              <span>{translate('contrast')} <strong>{contrast.toFixed(1)}x</strong></span>
               <input
                 max="1.8"
                 min="0.5"
@@ -490,7 +585,7 @@ function App() {
             </label>
 
             <label className="slider-control">
-              <span>Saturation <strong>{saturation.toFixed(1)}x</strong></span>
+              <span>{translate('saturation')} <strong>{saturation.toFixed(1)}x</strong></span>
               <input
                 max="2"
                 min="0"
@@ -504,7 +599,7 @@ function App() {
             <label className="palette-toggle">
               <span>
                 <Palette size={18} />
-                Use bead palette
+                {translate('useBeadPalette')}
               </span>
               <input
                 checked={usePalette}
@@ -514,7 +609,7 @@ function App() {
             </label>
 
             <label className="slider-control">
-              <span>Max colors <strong>{maxColors}</strong></span>
+              <span>{translate('maxColors')} <strong>{maxColors}</strong></span>
               <input
                 disabled={!usePalette}
                 max="24"
@@ -527,7 +622,7 @@ function App() {
             </label>
 
             <label className="slider-control">
-              <span>Clean speckles <strong>{speckleReduction} / 4</strong></span>
+              <span>{translate('cleanSpeckles')} <strong>{speckleReduction} / 4</strong></span>
               <input
                 disabled={!usePalette}
                 max="4"
@@ -542,10 +637,10 @@ function App() {
 
           <div className="used-colors">
             <div>
-              <strong>{usePalette ? `${usedColors.length} colors used` : 'Output colors'}</strong>
-              <span>{usePalette ? 'Mapped to bead palette' : 'From tuned image'}</span>
+              <strong>{usePalette ? translate('usedColors', { count: usedColors.length }) : translate('outputColors')}</strong>
+              <span>{usePalette ? translate('paletteMapped') : translate('sourceColors')}</span>
             </div>
-            <div className="used-color-strip" aria-label="Used colors">
+            <div className="used-color-strip" aria-label={translate('usedColors', { count: usedColors.length })}>
               {(usePalette ? usedColors : usedColors.slice(0, 18)).map((color) => (
                 <span
                   key={color.hex}
@@ -557,10 +652,111 @@ function App() {
             </div>
           </div>
 
-          <button className="download-button" type="button" disabled={!outputCanvas} onClick={handleDownload}>
-            <Download size={20} />
-            Download PNG
-          </button>
+          <div className="color-inventory">
+            <div className="section-label">
+              <Palette size={18} />
+              <span>{translate('colorInventory')}</span>
+            </div>
+            {colorInventory.length > 0 ? (
+              <div className="inventory-table" role="table" aria-label={translate('colorInventory')}>
+                <div className="inventory-row inventory-head" role="row">
+                  <span role="columnheader">{translate('colorName')}</span>
+                  <span role="columnheader">{translate('colorCount')}</span>
+                  <span role="columnheader">{translate('colorShare')}</span>
+                  <span role="columnheader">{translate('replaceColor')}</span>
+                </div>
+                {colorInventory.map((color) => (
+                  <div className="inventory-row" role="row" key={color.hex}>
+                    <span role="cell">
+                      <i style={{ backgroundColor: color.hex }} />
+                      <span>
+                        {color.name === 'Custom color' ? translate('customColor') : color.name}
+                        <small>{color.hex}</small>
+                      </span>
+                    </span>
+                    <strong role="cell">{color.count}</strong>
+                    <strong role="cell">{color.percentage}%</strong>
+                    <div className="replace-color-control" role="cell">
+                      <span>{translate('replaceColor')}</span>
+                      <select
+                        aria-label={`${translate('replaceColor')} ${color.hex}`}
+                        defaultValue=""
+                        id={getReplaceSelectId(color.hex)}
+                      >
+                        <option value="">{translate('replaceWith')}</option>
+                        {BEAD_PALETTE.map((paletteColor) => (
+                          <option key={paletteColor.hex} value={paletteColor.hex}>
+                            {paletteColor.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        ref={(button) => {
+                          if (button) {
+                            button.onclick = () => handleApplyReplacement(color.hex)
+                          }
+                        }}
+                      >
+                        {translate('applyReplacement')}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="hint">{translate('noColorsYet')}</p>
+            )}
+          </div>
+
+          <div className="board-layout">
+            <div className="section-label">
+              <Grid3X3 size={18} />
+              <span>{translate('boardLayout')}</span>
+            </div>
+            {boardLayout ? (
+              <>
+                <p className="board-summary">
+                  <strong>{translate('boardSize', { size: boardLayout.boardSize })}</strong>
+                  <span>
+                    {translate('boardSummary', {
+                      boards: boardLayout.totalBoards,
+                      columns: boardLayout.columns,
+                      rows: boardLayout.rows,
+                    })}
+                  </span>
+                </p>
+                <ol className="board-sections">
+                  {boardLayout.sections.map((section) => (
+                    <li key={section.index}>
+                      <strong>{section.index}</strong>
+                      <span>
+                        {translate('boardCoverage', {
+                          startX: section.startX,
+                          endX: section.endX,
+                          startY: section.startY,
+                          endY: section.endY,
+                        })}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            ) : (
+              <p className="hint">{translate('boardLayoutEmpty')}</p>
+            )}
+          </div>
+
+          <div className="download-actions">
+            <button className="download-button" type="button" disabled={!outputCanvas} onClick={handleDownload}>
+              <Download size={20} />
+              {translate('downloadPng')}
+            </button>
+            <button className="download-button secondary" type="button" disabled={!outputCanvas} onClick={handleDownloadGrid}>
+              <Grid3X3 size={20} />
+              {translate('downloadGridPng')}
+            </button>
+          </div>
         </aside>
       </section>
 
