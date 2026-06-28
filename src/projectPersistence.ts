@@ -9,6 +9,7 @@ export type ProjectColorOptions = {
 
 export type ProjectDocument = {
   version: 1
+  sourceName?: string
   width: number
   height: number
   colorOptions: ProjectColorOptions
@@ -23,6 +24,7 @@ const MAX_DIMENSION = 300
 export function createProjectDocumentFromImageData(
   imageData: ImageData,
   colorOptions: ProjectColorOptions,
+  sourceName = '',
 ): ProjectDocument {
   const pixels: Array<string | null> = []
 
@@ -35,13 +37,19 @@ export function createProjectDocumentFromImageData(
     pixels.push(rgbToHex(imageData.data[index], imageData.data[index + 1], imageData.data[index + 2]))
   }
 
-  return {
+  const document: ProjectDocument = {
     version: PROJECT_VERSION,
     width: imageData.width,
     height: imageData.height,
     colorOptions: { ...colorOptions },
     pixels,
   }
+
+  if (sourceName.trim()) {
+    document.sourceName = sourceName.trim()
+  }
+
+  return document
 }
 
 export function stringifyProjectDocument(document: ProjectDocument) {
@@ -86,6 +94,7 @@ export function parseProjectDocument(rawJson: string): ProjectDocument {
 
   return {
     version: PROJECT_VERSION,
+    sourceName: typeof parsed.sourceName === 'string' ? parsed.sourceName : undefined,
     width,
     height,
     colorOptions,

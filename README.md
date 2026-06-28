@@ -12,11 +12,12 @@ A Vite + React tool for turning uploaded images into bead-sized pixel art patter
 - Estimate a 29 x 29 board layout with board count and bead coordinate ranges.
 - Replace any generated color with a selected bead palette color.
 - Export and import `.perler.json` project files to continue editing a saved pattern.
+- Download a printable HTML instruction sheet with the grid image, bead inventory, and board sections.
 
 ## Roadmap
 
 1. Practical pattern exports: grid PNGs, color inventory, and 29 x 29 board layout details.
-2. Pattern editing: brand-specific palettes, single-cell editing, undo/redo, and printable instructions.
+2. Pattern editing: brand-specific palettes, single-cell editing, undo/redo, and richer PDF-style instructions.
 3. Image quality controls: dithering, edge enhancement, background cleanup, and before/after previews.
 4. App structure and QA: split panels into focused components and add browser smoke coverage.
 

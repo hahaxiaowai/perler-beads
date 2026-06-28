@@ -2,6 +2,7 @@ import Cropper, { type Area, type Point } from 'react-easy-crop'
 import {
   Download,
   FileJson,
+  FileText,
   FolderOpen,
   Grid3X3,
   ImagePlus,
@@ -28,6 +29,7 @@ import {
 } from './imageProcessing'
 import { getInitialLanguage, languages, t, type Language } from './i18n'
 import { DEFAULT_BOARD_SIZE, buildColorInventory, createGridPatternCanvas, getBoardLayout } from './patternExport'
+import { buildPrintableInstructionsHtml, getInstructionsFileName } from './printInstructions'
 import {
   createProjectDocumentFromImageData,
   getProjectFileName,
@@ -272,6 +274,27 @@ function App() {
     downloadCanvas(createGridPatternCanvas(outputCanvas), `pixel-art-grid-${xPixels}x${yPixels}.png`)
   }
 
+  const handleDownloadInstructions = () => {
+    if (!outputCanvas || !xPixels || !yPixels || !boardLayout) {
+      return
+    }
+
+    const gridCanvas = createGridPatternCanvas(outputCanvas)
+    const html = buildPrintableInstructionsHtml({
+      title: fileName || translate('brandName'),
+      width: xPixels,
+      height: yPixels,
+      gridImageDataUrl: gridCanvas.toDataURL('image/png'),
+      inventory: colorInventory,
+      boardLayout,
+    })
+    const link = window.document.createElement('a')
+    link.download = getInstructionsFileName(fileName, xPixels, yPixels)
+    link.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
+
   const handleExportProject = () => {
     if (!outputCanvas || !xPixels || !yPixels) {
       return
@@ -293,6 +316,7 @@ function App() {
         maxColors,
         speckleReduction,
       },
+      fileName,
     )
     const link = window.document.createElement('a')
     link.download = getProjectFileName(fileName, xPixels, yPixels)
@@ -330,7 +354,7 @@ function App() {
       previewContext.drawImage(nextOutputCanvas, 0, 0, previewCanvas.width, previewCanvas.height)
 
       setImageSrc(null)
-      setFileName(file.name)
+      setFileName(project.sourceName ?? file.name)
       setXPixelInput(String(project.width))
       setYPixelInput(String(project.height))
       setBrightness(project.colorOptions.brightness)
@@ -852,6 +876,10 @@ function App() {
             <button className="download-button tertiary" type="button" disabled={!outputCanvas} onClick={handleExportProject}>
               <FileJson size={20} />
               {translate('exportProject')}
+            </button>
+            <button className="download-button secondary" type="button" disabled={!outputCanvas} onClick={handleDownloadInstructions}>
+              <FileText size={20} />
+              {translate('downloadInstructions')}
             </button>
             <button className="download-button" type="button" disabled={!outputCanvas} onClick={handleDownload}>
               <Download size={20} />

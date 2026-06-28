@@ -36,8 +36,9 @@ describe('project persistence', () => {
       usePalette: true,
       maxColors: 10,
       speckleReduction: 3,
-    })).toEqual({
+    }, 'cat.png')).toEqual({
       version: 1,
+      sourceName: 'cat.png',
       width: 2,
       height: 2,
       colorOptions: {
@@ -71,10 +72,12 @@ describe('project persistence', () => {
         speckleReduction: 2,
       },
       pixels: ['#123456', null],
+      sourceName: 'saved-cat.png',
     }))
 
     const imageData = projectDocumentToImageData(document)
 
+    expect(document.sourceName).toBe('saved-cat.png')
     expect(Array.from(imageData.data)).toEqual([
       18, 52, 86, 255,
       0, 0, 0, 0,

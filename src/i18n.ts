@@ -30,6 +30,7 @@ type MessageKey =
   | 'cropRatioLocked'
   | 'cropStepTitle'
   | 'dimensionRangeHint'
+  | 'downloadInstructions'
   | 'downloadPng'
   | 'downloadGridPng'
   | 'export'
@@ -110,6 +111,7 @@ const messages: Record<Language, Messages> = {
     cropRatioLocked: 'Crop ratio is locked to {width}:{height}.',
     cropStepTitle: 'Crop your image',
     dimensionRangeHint: '{min}-{max} pixels per side.',
+    downloadInstructions: 'Download instructions',
     downloadPng: 'Download PNG',
     downloadGridPng: 'Download grid PNG',
     export: 'Export',
@@ -186,6 +188,7 @@ const messages: Record<Language, Messages> = {
     cropRatioLocked: '裁切比例已锁定为 {width}:{height}。',
     cropStepTitle: '裁切图片',
     dimensionRangeHint: '每边可设置 {min}-{max} 个像素。',
+    downloadInstructions: '下载说明书',
     downloadPng: '下载 PNG',
     downloadGridPng: '下载网格 PNG',
     export: '导出',

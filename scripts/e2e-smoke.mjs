@@ -92,6 +92,19 @@ try {
     'Expected imported project to show ready status.',
   )
 
+  const [instructionsDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: '下载说明书' }).click(),
+  ])
+  assert(
+    instructionsDownload.suggestedFilename() === 'e2e-fixture-48x48-instructions.html',
+    `Expected printable instructions filename, got ${instructionsDownload.suggestedFilename()}.`,
+  )
+  const instructionsHtml = await readFile(await instructionsDownload.path(), 'utf8')
+  assert(instructionsHtml.includes('48 x 48 beads'), 'Expected instructions to include pattern dimensions.')
+  assert(instructionsHtml.includes('#ffcf56'), 'Expected instructions to include restored color inventory.')
+  assert(instructionsHtml.includes('Board 4'), 'Expected instructions to include all board sections.')
+
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     page.getByRole('button', { name: '下载网格 PNG' }).click(),
