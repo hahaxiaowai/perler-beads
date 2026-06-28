@@ -837,6 +837,7 @@ button:focus-visible {
 
 .download-actions {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -858,6 +859,13 @@ button:focus-visible {
 .download-button.secondary {
   background: #fffaf0;
   color: #27221d;
+}
+
+.download-button.tertiary {
+  min-height: 44px;
+  background: #2f6d9e;
+  color: #fffaf0;
+  font-size: 13px;
 }
 
 .download-button:not(:disabled):hover {
@@ -964,5 +972,9 @@ button:focus-visible {
 
   .header-status {
     max-width: none;
+  }
+
+  .download-actions {
+    grid-template-columns: 1fr;
   }
 }

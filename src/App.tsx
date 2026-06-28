@@ -1,6 +1,8 @@
 import Cropper, { type Area, type Point } from 'react-easy-crop'
 import {
   Download,
+  FileJson,
+  FolderOpen,
   Grid3X3,
   ImagePlus,
   LockKeyhole,
@@ -18,6 +20,7 @@ import {
   BEAD_PALETTE,
   downloadCanvas,
   getCroppedCanvas,
+  getUsedColors,
   loadImageFromFile,
   pixelateCanvas,
   replaceCanvasColor,
@@ -25,6 +28,13 @@ import {
 } from './imageProcessing'
 import { getInitialLanguage, languages, t, type Language } from './i18n'
 import { DEFAULT_BOARD_SIZE, buildColorInventory, createGridPatternCanvas, getBoardLayout } from './patternExport'
+import {
+  createProjectDocumentFromImageData,
+  getProjectFileName,
+  parseProjectDocument,
+  projectDocumentToImageData,
+  stringifyProjectDocument,
+} from './projectPersistence'
 
 const MIN_PIXELS = 1
 const MAX_PIXELS = 300
@@ -86,6 +96,7 @@ function App() {
   const [error, setError] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const projectInputRef = useRef<HTMLInputElement | null>(null)
 
   const xPixels = parsePixelInput(xPixelInput)
   const yPixels = parsePixelInput(yPixelInput)
@@ -103,16 +114,16 @@ function App() {
       return translate('invalidDimensionsStatus', { min: MIN_PIXELS, max: MAX_PIXELS })
     }
 
-    if (!imageSrc) {
-      return translate('uploadStatus')
-    }
-
     if (isProcessing) {
       return translate('processingStatus')
     }
 
     if (previewUrl) {
       return translate('readyStatus', { width: xPixels, height: yPixels })
+    }
+
+    if (!imageSrc) {
+      return translate('uploadStatus')
     }
 
     return translate('cropHint')
@@ -261,6 +272,85 @@ function App() {
     downloadCanvas(createGridPatternCanvas(outputCanvas), `pixel-art-grid-${xPixels}x${yPixels}.png`)
   }
 
+  const handleExportProject = () => {
+    if (!outputCanvas || !xPixels || !yPixels) {
+      return
+    }
+
+    const context = outputCanvas.getContext('2d', { willReadFrequently: true })
+    if (!context) {
+      setError(translate('projectExportError'))
+      return
+    }
+
+    const document = createProjectDocumentFromImageData(
+      context.getImageData(0, 0, outputCanvas.width, outputCanvas.height),
+      {
+        brightness,
+        contrast,
+        saturation,
+        usePalette,
+        maxColors,
+        speckleReduction,
+      },
+    )
+    const link = window.document.createElement('a')
+    link.download = getProjectFileName(fileName, xPixels, yPixels)
+    link.href = URL.createObjectURL(new Blob([stringifyProjectDocument(document)], { type: 'application/json' }))
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
+
+  const handleProjectFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) {
+      return
+    }
+
+    try {
+      const project = parseProjectDocument(await file.text())
+      const imageData = projectDocumentToImageData(project)
+      const nextOutputCanvas = window.document.createElement('canvas')
+      const context = nextOutputCanvas.getContext('2d', { willReadFrequently: true })
+      const previewCanvas = window.document.createElement('canvas')
+      const previewContext = previewCanvas.getContext('2d')
+      if (!context || !previewContext) {
+        setError(translate('projectImportError'))
+        return
+      }
+
+      nextOutputCanvas.width = project.width
+      nextOutputCanvas.height = project.height
+      context.putImageData(imageData, 0, 0)
+      const nextPreviewScale = getPreviewScale(project.width, project.height)
+      previewCanvas.width = project.width * nextPreviewScale
+      previewCanvas.height = project.height * nextPreviewScale
+      previewContext.imageSmoothingEnabled = false
+      previewContext.drawImage(nextOutputCanvas, 0, 0, previewCanvas.width, previewCanvas.height)
+
+      setImageSrc(null)
+      setFileName(file.name)
+      setXPixelInput(String(project.width))
+      setYPixelInput(String(project.height))
+      setBrightness(project.colorOptions.brightness)
+      setContrast(project.colorOptions.contrast)
+      setSaturation(project.colorOptions.saturation)
+      setUsePalette(project.colorOptions.usePalette)
+      setMaxColors(project.colorOptions.maxColors)
+      setSpeckleReduction(project.colorOptions.speckleReduction)
+      setOutputCanvas(nextOutputCanvas)
+      setPreviewUrl(previewCanvas.toDataURL('image/png'))
+      setUsedColors(getUsedColors(nextOutputCanvas))
+      setCropPixels(null)
+      setCrop({ x: 0, y: 0 })
+      setZoom(1)
+      setError('')
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : translate('projectImportError'))
+    }
+  }
+
   const handleReplaceColor = (fromHex: string, replacementHex: string) => {
     if (!outputCanvas) {
       return
@@ -399,6 +489,13 @@ function App() {
             <strong>{fileName || translate('uploadActionEmpty')}</strong>
             <span>{translate('uploadActionHint')}</span>
           </button>
+          <input
+            ref={projectInputRef}
+            accept="application/json,.json,.perler.json"
+            className="file-input"
+            type="file"
+            onChange={handleProjectFileChange}
+          />
 
           <div className="dimension-card">
             <div className="section-label">
@@ -748,6 +845,14 @@ function App() {
           </div>
 
           <div className="download-actions">
+            <button className="download-button tertiary" type="button" onClick={() => projectInputRef.current?.click()}>
+              <FolderOpen size={20} />
+              {translate('importProject')}
+            </button>
+            <button className="download-button tertiary" type="button" disabled={!outputCanvas} onClick={handleExportProject}>
+              <FileJson size={20} />
+              {translate('exportProject')}
+            </button>
             <button className="download-button" type="button" disabled={!outputCanvas} onClick={handleDownload}>
               <Download size={20} />
               {translate('downloadPng')}

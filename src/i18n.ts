@@ -33,6 +33,7 @@ type MessageKey =
   | 'downloadPng'
   | 'downloadGridPng'
   | 'export'
+  | 'exportProject'
   | 'fileTypeError'
   | 'imageReadError'
   | 'imageLoadError'
@@ -52,6 +53,9 @@ type MessageKey =
   | 'previewScale'
   | 'previewStageTitle'
   | 'processingStatus'
+  | 'projectExportError'
+  | 'projectImportError'
+  | 'importProject'
   | 'ratioLocked'
   | 'readyStatus'
   | 'replaceColor'
@@ -109,6 +113,7 @@ const messages: Record<Language, Messages> = {
     downloadPng: 'Download PNG',
     downloadGridPng: 'Download grid PNG',
     export: 'Export',
+    exportProject: 'Export project',
     fileTypeError: 'Please upload a JPG, PNG, or WebP image.',
     imageReadError: 'Could not read image file.',
     imageLoadError: 'Could not load image.',
@@ -128,6 +133,9 @@ const messages: Record<Language, Messages> = {
     previewScale: 'Preview scale',
     previewStageTitle: 'Preview the pixels',
     processingStatus: 'Building crisp bead-sized pixels...',
+    projectExportError: 'Could not export this project.',
+    projectImportError: 'Could not import this project file.',
+    importProject: 'Import project',
     ratioLocked: 'Ratio locked',
     readyStatus: 'Ready: {width} x {height} PNG.',
     replaceColor: 'Replace',
@@ -181,6 +189,7 @@ const messages: Record<Language, Messages> = {
     downloadPng: '下载 PNG',
     downloadGridPng: '下载网格 PNG',
     export: '导出',
+    exportProject: '导出项目',
     fileTypeError: '请上传 JPG、PNG 或 WebP 图片。',
     imageReadError: '无法读取图片文件。',
     imageLoadError: '无法加载图片。',
@@ -200,6 +209,9 @@ const messages: Record<Language, Messages> = {
     previewScale: '预览倍率',
     previewStageTitle: '预览像素图',
     processingStatus: '正在生成清晰的拼豆像素...',
+    projectExportError: '无法导出这个项目。',
+    projectImportError: '无法导入这个项目文件。',
+    importProject: '导入项目',
     ratioLocked: '比例已锁定',
     readyStatus: '已就绪：{width} x {height} PNG。',
     replaceColor: '替换',
